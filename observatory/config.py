@@ -37,6 +37,8 @@ class Source(Contract):
     metrics_format: str = Field(default="jsonl", pattern="^(jsonl|json-map)$")
     log: RelativePath | None = "run.log"
     baseline: RunID | None = None
+    evidence_root: Path | None = None
+    evidence_paths: list[RelativePath] = Field(default_factory=list)
     metrics_style: dict[str, MetricStyle] = Field(default_factory=dict)
     sections: dict[str, str] = Field(default_factory=dict)
     trajectories: list[Trajectory] = Field(default_factory=list)
@@ -77,4 +79,6 @@ def load_settings(path: Path | None = None) -> Settings:
     ).resolve()
     for source in raw.get("sources", []):
         source["root"] = (path.parent / source["root"]).resolve()
+        if source.get("evidence_root"):
+            source["evidence_root"] = (path.parent / source["evidence_root"]).resolve()
     return Settings.model_validate(raw)

@@ -141,6 +141,7 @@ def compare(index, run_ids, baseline_id=None, episode=None):
                 "status": run["status"],
                 "issues": issues,
                 "truncated": truncated,
+                "context": run["reproducibility"]["config"].get("comparison_context"),
             }
         )
     return {

@@ -59,7 +59,11 @@ class Index:
                 try:
                     with os.scandir(source.root):
                         pass
-                    roots = sorted(source.root.glob(source.glob))
+                    roots = (
+                        [source.root]
+                        if source.glob == "."
+                        else sorted(source.root.glob(source.glob))
+                    )
                 except OSError as exc:
                     issues.append({"source": source.name, "error": str(exc)})
                     continue
@@ -126,9 +130,19 @@ class Index:
         def fail(exc):
             errors.append(exc)
 
-        for folder, dirs, names, directory in os.fwalk(
-            root, follow_symlinks=False, onerror=fail
-        ):
+        trees = [(root, root)]
+        if source.evidence_root:
+            for relative in source.evidence_paths:
+                evidence = source.evidence_root / relative
+                if evidence.is_dir() and evidence.resolve() == evidence:
+                    trees.append((evidence, source.evidence_root))
+
+        def walk():
+            for tree, base in trees:
+                for entry in os.fwalk(tree, follow_symlinks=False, onerror=fail):
+                    yield base, entry
+
+        for base, (folder, dirs, names, directory) in walk():
             dirs[:] = [name for name in dirs if not name.startswith(".")]
             for name in names:
                 if name.startswith("."):
@@ -136,7 +150,7 @@ class Index:
                 path = Path(folder) / name
                 try:
                     info = os.stat(name, dir_fd=directory, follow_symlinks=False)
-                    relative = relative_path(path.relative_to(root).as_posix())
+                    relative = relative_path(path.relative_to(base).as_posix())
                 except (FileNotFoundError, ValueError):
                     continue
                 if not stat.S_ISREG(info.st_mode):
@@ -310,6 +324,12 @@ class Index:
                 "SELECT 1 FROM files WHERE run_id=? AND path=?", (run_id, relative)
             ).fetchone():
                 raise KeyError(f"file is not indexed: {relative}")
+        source = self.settings.source(self.get(run_id)["source"])
+        if source.evidence_root and any(
+            relative == prefix or relative.startswith(prefix + "/")
+            for prefix in source.evidence_paths
+        ):
+            return source.evidence_root
         return root
 
 

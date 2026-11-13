@@ -657,8 +657,13 @@ function compareView(version) {
           run.truncated ? "metric catalog truncated" : ""].filter(Boolean);
         return details.length ? [notice(`${run.title} · ${details.join(" · ")}`)] : [];
       });
+      const contexts = data.runs.filter(run => run.context != null);
+      const caveats = contexts.length ? [panel(
+        notice("Descriptive comparison: aggregate cohorts may differ. Review recorded conditions and caveats before attributing a delta to an experimental factor."),
+        ...contexts.map(run => node("details", {},
+          node("summary", {}, `${run.title} · recorded comparison context`), jsonBlock(run.context))))] : [];
       const charts = compareCharts(data);
-      output.replaceChildren(...issues, node("section", { class: "panel" },
+      output.replaceChildren(...caveats, ...issues, node("section", { class: "panel" },
         data.rows.length ? comparisonTable(data) : node("div", { class: "panel-pad" }, notice("No metrics are indexed for this scope."))),
       ...(charts ? [panel(node("h2", {}, "Metric charts"), charts)] : []));
     } catch (error) {

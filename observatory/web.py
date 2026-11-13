@@ -41,13 +41,16 @@ STATIC = Path(__file__).parent / "static"
 LOGGER = logging.getLogger(__name__)
 
 
-def make_app(settings=None):
+def make_app(settings=None, refresh_settings=None):
     settings = settings or load_settings()
     index = Index(settings)
     scan_state = {"runs": 0, "issues": []}
 
     async def scan():
         try:
+            if refresh_settings:
+                fresh = await run_in_threadpool(refresh_settings)
+                settings.sources = fresh.sources
             scan_state.update(await run_in_threadpool(index.scan))
         except Exception:
             LOGGER.exception("Index refresh failed")
