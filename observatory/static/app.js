@@ -272,15 +272,29 @@ function comparisonTable(data) {
   return comparison;
 }
 
-const seriesColors = ["#17644f", "#47668a", "#ab5d41", "#8d6740", "#795599", "#487678"];
+const chartPainters = new WeakMap();
+document.addEventListener("rundeck-theme-change", () => {
+  for (const canvas of main.querySelectorAll("canvas")) chartPainters.get(canvas)?.();
+});
 function canvasPlot(label, draw) {
   const canvas = node("canvas", { width: 640, height: 270, role: "img", "aria-label": label });
   const context = canvas.getContext("2d");
   if (context) {
-    context.scale(2, 2);
-    context.font = "10px system-ui";
-    context.fillStyle = "#58655f";
-    draw(context, 320, 135);
+    function paint() {
+      const style = getComputedStyle(document.documentElement);
+      const colors = {
+        text: style.getPropertyValue("--muted-foreground").trim(),
+        axis: style.getPropertyValue("--chart-axis").trim(),
+        series: style.getPropertyValue("--chart-series").split(",").map(color => color.trim()),
+      };
+      context.setTransform(2, 0, 0, 2, 0, 0);
+      context.clearRect(0, 0, 320, 135);
+      context.font = "10px system-ui";
+      context.textAlign = "left";
+      draw(context, 320, 135, colors);
+    }
+    chartPainters.set(canvas, paint);
+    paint();
   }
   return canvas;
 }
@@ -295,20 +309,20 @@ function barChart(heading, items) {
   const high = Math.max(0, ...items.map(item => item.value));
   const label = items.map(item => `${item.label} ${number.format(item.value)} ${item.unit}`).join(", ");
   return node("div", { class: "chart-card" }, node("h3", {}, heading),
-    canvasPlot(label, (ctx, width, height) => {
+    canvasPlot(label, (ctx, width, height, colors) => {
       const left = 14;
       const space = width - 28;
       const step = (height - 18) / items.length;
       const x = value => left + scalePosition(value, low, high) * space;
       const zero = x(0);
-      ctx.fillStyle = "#b3c3b9";
+      ctx.fillStyle = colors.axis;
       ctx.fillRect(zero, 0, 1, height - 16);
       items.forEach((item, index) => {
-        ctx.fillStyle = seriesColors[index % seriesColors.length];
+        ctx.fillStyle = colors.series[index % colors.series.length];
         ctx.fillRect(Math.min(x(item.value), zero), index * step + 3,
           Math.max(1, Math.abs(x(item.value) - zero)), Math.max(2, step * .65));
       });
-      ctx.fillStyle = "#58655f";
+      ctx.fillStyle = colors.text;
       ctx.fillText(number.format(low), left, height - 2);
       ctx.textAlign = "right";
       ctx.fillText(number.format(high), width - 14, height - 2);
@@ -404,11 +418,11 @@ function trajectoryPlot(data, column) {
   return node("div", { class: "chart-card" }, node("h3", {}, column),
     node("p", { class: "numeric" }, `${valid.length} values · min ${number.format(low)} · max ${number.format(high)}`),
     canvasPlot(`${column} from row ${data.offset + 1} through ${data.offset + data.rows.length}`,
-      (ctx, width, height) => {
+      (ctx, width, height, colors) => {
         const x = index => 14 + (width - 28) * index / Math.max(1, series.length - 1);
         const y = value => 7 + (height - 24) * (1 - scalePosition(value, low, high));
-        ctx.strokeStyle = seriesColors[0];
-        ctx.fillStyle = seriesColors[0];
+        ctx.strokeStyle = colors.series[0];
+        ctx.fillStyle = colors.series[0];
         ctx.lineWidth = 1.6;
         let previous = null;
         series.forEach((value, index) => {
@@ -423,7 +437,7 @@ function trajectoryPlot(data, column) {
           }
           previous = value;
         });
-        ctx.fillStyle = "#58655f";
+        ctx.fillStyle = colors.text;
         ctx.fillText(String(data.offset + 1), 14, height - 2);
         ctx.textAlign = "right";
         ctx.fillText(String(data.offset + data.rows.length), width - 14, height - 2);

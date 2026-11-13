@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#f7f8f6">
   <title>Rundeck | Experiment Observatory</title>
+  <script src="/static/theme.js"></script>
   <link rel="stylesheet" href="/static/style.css">
   <script src="/static/app.js" type="module"></script>
 </head>
@@ -19,6 +20,10 @@
       <a id="runs-link" href="#runs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 9h16M9 9v11"/></svg><span>Runs</span></a>
       <a id="compare-link" href="#compare"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19h16M7 15v-4m5 4V5m5 10V8"/></svg><span>Compare</span><small id="compare-count" hidden></small></a>
     </nav>
+    <button id="theme-toggle" type="button" aria-label="Dark mode" aria-pressed="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.9 13.4A9 9 0 0 1 10.6 3.1a9 9 0 1 0 10.3 10.3Z"/></svg>
+      <span>Dark mode</span>
+    </button>
   </header>
   <main id="main" tabindex="-1"></main>
   <noscript>Enable JavaScript to browse the experiment catalog.</noscript>

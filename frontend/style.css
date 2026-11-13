@@ -18,8 +18,33 @@
   --success: #166344;
   --warning: #865010;
   --danger: #a13347;
+  --on-primary: #fff;
+  --running: #325d91;
+  --draft: #6e4b88;
+  --chart-axis: #b3c3b9;
+  --chart-series: #17644f, #47668a, #ab5d41, #8d6740, #795599, #487678;
   --sans: "Geist", "Inter", system-ui, sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --background: #111714;
+  --foreground: #e8f0ea;
+  --card: #19221d;
+  --muted-foreground: #acbbb1;
+  --border: #34433a;
+  --primary: #83d7b2;
+  --primary-hover: #a3e5c8;
+  --on-primary: #10291f;
+  --accent: #233b2f;
+  --success: #88d6ac;
+  --warning: #efbc79;
+  --danger: #f4a4b1;
+  --running: #a2c8f5;
+  --draft: #d4b6ed;
+  --chart-axis: #62776a;
+  --chart-series: #83d7b2, #91bafb, #edab92, #dec18a, #d4b6ed, #80c9cf;
 }
 
 * { box-sizing: border-box; }
@@ -31,17 +56,17 @@ button, .button { cursor: pointer; font-weight: 650; white-space: nowrap; }
 button:hover, .button:hover { background: var(--accent); }
 button:disabled { cursor: default; opacity: .48; }
 .button { @apply inline-flex items-center no-underline; }
-.primary { background: var(--primary); border-color: var(--primary); color: white; }
+.primary { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
 .primary:hover { background: var(--primary-hover); }
 :focus-visible { outline: 3px solid var(--primary); outline-offset: 3px; }
 input[type="checkbox"] { accent-color: var(--primary); width: 1.05rem; height: 1.05rem; min-height: 0; vertical-align: middle; }
 label { font-weight: 600; }
 .skip { position: absolute; top: -6rem; }
-.skip:focus { top: .5rem; left: .5rem; z-index: 5; background: white; padding: .5rem; }
+.skip:focus { top: .5rem; left: .5rem; z-index: 5; background: var(--card); padding: .5rem; }
 body { display: grid; grid-template-columns: 218px minmax(0, 1fr); min-height: 100vh; }
-.mast { position: sticky; top: 0; height: 100vh; padding: 25px 14px; border-right: 1px solid var(--border); background: var(--card); }
+.mast { display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; padding: 25px 14px; border-right: 1px solid var(--border); background: var(--card); }
 .brand { display: flex; align-items: center; gap: 10px; padding: 0 8px; color: var(--foreground); font-size: 19px; font-weight: 700; letter-spacing: -.04em; text-decoration: none; }
-.mark { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; background: var(--primary); color: white; }
+.mark { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; background: var(--primary); color: var(--on-primary); }
 .mark svg { width: 21px; height: 21px; }
 nav { display: flex; align-items: center; gap: .25rem; flex-wrap: wrap; }
 .mast nav { display: grid; gap: 5px; margin-top: 32px; }
@@ -85,16 +110,16 @@ table a { color: var(--foreground); font-weight: 650; text-decoration: none; }
 table a:hover { color: var(--primary); text-decoration: underline; }
 .pager { justify-content: space-between; padding: .75rem 1rem; border-top: 1px solid var(--border); align-items: center; }
 .pager > div { display: flex; gap: .5rem; }
-.badge { @apply inline-flex items-center gap-1.5 whitespace-nowrap rounded-full; color: var(--status-color, var(--muted-foreground)); background: color-mix(in srgb, currentColor 9%, white); padding: .1rem .5rem; font-size: .8rem; font-weight: 680; }
+.badge { @apply inline-flex items-center gap-1.5 whitespace-nowrap rounded-full; color: var(--status-color, var(--muted-foreground)); background: color-mix(in srgb, currentColor 12%, var(--card)); padding: .1rem .5rem; font-size: .8rem; font-weight: 680; }
 .badge::before { content: ""; width: .45rem; height: .45rem; background: currentColor; border-radius: 50%; }
-.running { --status-color: #325d91; }
-.draft { --status-color: #6e4b88; }
+.running { --status-color: var(--running); }
+.draft { --status-color: var(--draft); }
 .completed, .finalized, .valid { --status-color: var(--success); }
 .failed, .invalid { --status-color: var(--danger); }
 .interrupted, .incomplete { --status-color: var(--warning); }
 .tag { border: 1px solid var(--border); border-radius: .25rem; padding: .04rem .35rem; font-size: .75rem; }
 .notice { padding: .8rem 1rem; border: 1px solid var(--border); background: var(--background); border-radius: .45rem; margin: .8rem 0; overflow-wrap: anywhere; }
-.error { color: var(--danger); border-color: #ebbac6; }
+.error { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, var(--border)); }
 .breadcrumb { display: inline-block; margin-bottom: 1rem; }
 .tabs { border-bottom: 1px solid var(--border); margin-bottom: 1.1rem; }
 .tabs a { font-weight: 650; text-decoration: none; padding: .6rem .8rem; }
@@ -123,7 +148,7 @@ canvas { width: 100%; height: auto; display: block; margin-top: .4rem; }
 @media (max-width: 760px) {
   main { padding: 25px 15px 42px; }
   body { display: block; }
-  .mast { position: static; height: auto; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; padding: 10px 14px; border-right: 0; border-bottom: 1px solid var(--border); }
+  .mast { position: static; height: auto; flex-direction: row; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; padding: 10px 14px; border-right: 0; border-bottom: 1px solid var(--border); }
   .brand { padding: 0; font-size: 17px; }
   .mark { width: 30px; height: 30px; }
   .mast nav { display: flex; margin: 0; }
@@ -169,3 +194,12 @@ table[aria-label="Runs"] th { font-size: .75rem; font-weight: 600; }
 .pager button { min-height: 30px; font-size: .8rem; }
 .comparison-controls, .comparison-controls .actions { align-items: end; }
 .report-section h2 + * { margin-top: .65rem; }
+
+#theme-toggle { display: inline-flex; align-items: center; justify-content: center; gap: 8px; margin-top: auto; color: var(--muted-foreground); }
+#theme-toggle[aria-pressed="true"] { background: var(--accent); color: var(--primary); }
+#theme-toggle svg { width: 16px; height: 16px; }
+@media (max-width: 760px) {
+  .mast nav { margin-left: auto; }
+  #theme-toggle { margin: 0; min-width: 34px; min-height: 34px; padding: 0 7px; }
+  #theme-toggle span { display: none; }
+}
