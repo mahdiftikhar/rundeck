@@ -43,6 +43,7 @@ const coverage = run => {
 };
 const scoreNames = { progress: "Goals found", success: "Success", mspl: "MSPL" };
 const percent = value => Number.isFinite(value) ? `${(value * 100).toFixed(1)}%` : "—";
+let overviewMetric = "progress";
 let showUnsuccessful = false;
 const visibleStatus = run => showUnsuccessful || !["failed", "interrupted"].includes(run.status);
 
@@ -67,6 +68,80 @@ async function allRuns(pairs = []) {
     offset += page.runs.length;
     if (offset >= page.total || !page.runs.length) return { ...first, runs };
   }
+}
+
+function candidateChart(candidates, metric) {
+  const svgNode = (tag, attrs = {}, ...children) => {
+    const element = document.createElementNS("http://www.w3.org/2000/svg", tag);
+    for (const [key, value] of Object.entries(attrs)) element.setAttribute(key, String(value));
+    element.append(...children);
+    return element;
+  };
+  const width = 600;
+  const left = 160;
+  const plotWidth = 365;
+  const top = 22;
+  const rowHeight = 110;
+  const bottom = top + candidates.length * rowHeight;
+  const height = bottom + 66;
+  const chart = svgNode("svg", {
+    viewBox: `0 0 ${width} ${height}`, role: "img", "aria-labelledby": "candidate-chart-title",
+    class: "candidate-chart",
+  }, svgNode("title", { id: "candidate-chart-title" },
+    `${scoreNames[metric]}: ${candidates.map(run => `${displayOf(run).experiment}, ${percent(displayOf(run).scores?.[metric])}`).join("; ")}`));
+
+  for (const tick of [0, 20, 40, 60, 80, 100]) {
+    const x = left + plotWidth * tick / 100;
+    chart.append(svgNode("line", { x1: x, x2: x, y1: top, y2: bottom,
+      class: tick === 0 ? "candidate-axis" : "candidate-gridline", "aria-hidden": "true" }),
+    svgNode("text", { x, y: bottom + 25, "text-anchor": "middle", class: "candidate-tick" }, `${tick}%`));
+  }
+  chart.append(svgNode("line", { x1: left, x2: left + plotWidth, y1: bottom, y2: bottom,
+    class: "candidate-axis", "aria-hidden": "true" }),
+  svgNode("text", { x: left + plotWidth / 2, y: height - 8, "text-anchor": "middle", class: "candidate-axis-label" },
+    `${scoreNames[metric]} (%)`));
+
+  candidates.forEach((run, index) => {
+    const d = displayOf(run);
+    const value = d.scores?.[metric];
+    const valid = Number.isFinite(value) && value >= 0 && value <= 1;
+    const y = top + index * rowHeight + rowHeight / 2;
+    const end = left + (valid ? value * plotWidth : 0);
+    const label = d.experiment?.split(" · ").slice(1).join(" · ") || run.title;
+    const entry = svgNode("a", { href: runHash(run.id), class: `candidate-series candidate-series-${index % 2}` },
+      svgNode("title", {}, `${d.experiment || run.title}: ${percent(value)}`),
+      svgNode("text", { x: left - 14, y: y + 6, "text-anchor": "end", class: "candidate-label" }, label));
+    if (valid) entry.append(svgNode("rect", {
+      x: left, y: y - 22, width: value * plotWidth, height: 44, rx: 4, class: "candidate-bar",
+    }));
+    entry.append(svgNode("text", { x: end + 10, y: y + 6, class: "candidate-value" }, percent(value)));
+    chart.append(entry);
+  });
+  return node("figure", { class: "candidate-figure" },
+    node("figcaption", {}, scoreNames[metric]), chart);
+}
+
+async function candidateOverview(target, version) {
+  const { runs } = await allRuns();
+  if (version !== generation || !target.isConnected) return;
+  const candidates = runs.filter(run => displayOf(run).candidate === true
+    && displayOf(run).kind === "evaluation" && visibleStatus(run))
+    .sort((a, b) => displayOf(a).candidate_order - displayOf(b).candidate_order);
+  const metric = dropdown("Chart metric", Object.entries(scoreNames), overviewMetric, value => {
+    overviewMetric = value;
+    candidateOverview(target, version).catch(error => target.replaceChildren(notice(error.message, true)));
+  });
+  target.replaceChildren(node("div", { class: "catalog-heading" }, node("h2", {}, "Candidate results"), metric));
+  if (!candidates.length) {
+    target.append(notice("No candidate evaluations are available under the current status visibility."));
+    return;
+  }
+  const bars = candidateChart(candidates, overviewMetric);
+  const rows = candidates.map(run => [link(displayOf(run).experiment || run.title, runHash(run.id)), scopeLabel(run), coverage(run),
+    badge(run.status), ...Object.keys(scoreNames).map(name => percent(displayOf(run).scores?.[name]))]);
+  target.append(notice("Scores may use different episodes or settings."),
+    node("div", { class: "overview-grid" }, bars,
+      table(["Candidate", "Scope", "Episodes", "Status", ...Object.values(scoreNames)], rows, "Candidate results")));
 }
 
 function resultsView(run, target) {
@@ -187,6 +262,7 @@ async function explorer(version) {
     if (key === "status" && ["failed", "interrupted"].includes(value)) {
       showUnsuccessful = true;
       unsuccessful.checked = true;
+      refreshOverview();
     }
     runsOffset = 0;
     load();
@@ -205,11 +281,15 @@ async function explorer(version) {
     if (!showUnsuccessful && ["failed", "interrupted"].includes(filters.status)) filters.status = "";
     runsOffset = 0;
     load();
+    refreshOverview();
   });
   controls.append(node("label", { class: "status-visibility" }, unsuccessful, "Show failed and interrupted"));
   let sourceField;
   list.append(node("div", { class: "catalog-heading" }, node("h2", {}, "Experiments"), count), controls, content);
-  main.append(title("Experiments"), strip, problems, list, selectionBar);
+  const overview = node("section", { class: "panel panel-pad" });
+  main.append(title("Experiments"), overview, strip, problems, list, selectionBar);
+  const refreshOverview = () => candidateOverview(overview, version).catch(error => overview.replaceChildren(notice(error.message, true)));
+  refreshOverview();
   updateSelection();
 
   async function load(quiet = false) {
@@ -289,7 +369,7 @@ async function explorer(version) {
   }
 
   await load();
-  if (version === generation) later(() => load(true), 8000);
+  if (version === generation) later(() => { load(true); refreshOverview(); }, 8000);
 }
 
 function descriptionList(items) {

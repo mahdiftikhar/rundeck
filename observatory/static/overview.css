@@ -1,3 +1,20 @@
+.overview-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+.candidate-figure { margin: 0; padding: 8px 0; min-width: 0; }
+.candidate-figure figcaption { font-size: 16px; font-weight: 650; margin-bottom: 12px; }
+.candidate-chart { display: block; width: 100%; height: auto; overflow: visible; font-family: inherit; }
+.candidate-gridline { stroke: var(--border); stroke-width: 1; stroke-dasharray: 3 5; }
+.candidate-axis { stroke: var(--chart-axis); stroke-width: 1.25; }
+.candidate-tick, .candidate-axis-label { fill: var(--muted-foreground); font-size: 16px; }
+.candidate-label { fill: var(--foreground); font-size: 20px; font-weight: 550; }
+.candidate-value { fill: var(--foreground); font-size: 20px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.candidate-series-0 { --series-color: #187c68; }
+.candidate-series-1 { --series-color: #527bc5; }
+[data-theme="dark"] .candidate-series-0 { --series-color: #71cdb3; }
+[data-theme="dark"] .candidate-series-1 { --series-color: #8eaff0; }
+.candidate-bar { fill: var(--series-color); }
+.candidate-series:hover .candidate-bar, .candidate-series:focus .candidate-bar { opacity: .8; }
+@media (max-width: 900px) { .overview-grid { grid-template-columns: 1fr; } }
+
 .status-visibility { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
 .status-visibility input { width: auto; }
 .filters .status-visibility { display: flex; align-items: center; align-self: end; gap: 8px; padding-bottom: 10px; }
