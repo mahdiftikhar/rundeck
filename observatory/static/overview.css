@@ -1,0 +1,6 @@
+.status-visibility { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+.status-visibility input { width: auto; }
+.filters .status-visibility { display: flex; align-items: center; align-self: end; gap: 8px; padding-bottom: 10px; }
+.filters .status-visibility input { flex: none; width: auto; margin: 0; }
+table[aria-label="Experiments"] > tbody > tr > td:last-child { white-space: nowrap; }
+details[data-experiment] td:nth-child(2), details[data-experiment] td:last-child { white-space: nowrap; }

@@ -26,9 +26,61 @@ const panel = (...children) => node("section", { class: "panel panel-pad" }, chi
 const notice = (message, error = false) => node("p", { class: error ? "notice error" : "notice", role: error ? "alert" : null }, message);
 const badge = (state) => node("span", { class: `badge ${state}` }, state);
 const query = (pairs) => new URLSearchParams(pairs.filter(([, value]) => value !== "" && value != null)).toString();
-const runHash = (id, tab = "report") => `#run/${encodeURIComponent(id)}/${tab}`;
+const runHash = (id, tab = "results") => `#run/${encodeURIComponent(id)}/${tab}`;
 const runApi = (id, suffix = "") => `/api/runs/${encodeURIComponent(id)}${suffix}`;
 const lookup = (map, key) => Object.hasOwn(map, key) ? map[key] : undefined;
+
+const displayOf = run => run.reproducibility?.config?.display || {};
+const experimentKey = run => run.reproducibility?.config?.experiment_id || run.id;
+const kindLabels = { evaluation: "Full evaluation", "spot-check": "Spot check", pilot: "Pilot", unknown: "Unknown" };
+const scopeLabel = run => {
+  const d = displayOf(run);
+  return d.benchmark ? d.benchmark.toLowerCase() : kindLabels[d.kind] || "Unknown";
+};
+const coverage = run => {
+  const d = displayOf(run);
+  return String(d.completed_episodes ?? "—");
+};
+const scoreNames = { progress: "Goals found", success: "Success", mspl: "MSPL" };
+const percent = value => Number.isFinite(value) ? `${(value * 100).toFixed(1)}%` : "—";
+let showUnsuccessful = false;
+const visibleStatus = run => showUnsuccessful || !["failed", "interrupted"].includes(run.status);
+
+function experimentGroups(runs) {
+  const groups = new Map();
+  for (const run of runs) {
+    const key = experimentKey(run);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(run);
+  }
+  return [...groups.values()].map(group => group.sort((a, b) => a.id.localeCompare(b.id)));
+}
+
+async function allRuns(pairs = []) {
+  const runs = [];
+  let first;
+  let offset = 0;
+  while (true) {
+    const page = await api(`/api/runs?${query([...pairs, ["limit", 200], ["offset", offset]])}`);
+    first ||= page;
+    runs.push(...page.runs);
+    offset += page.runs.length;
+    if (offset >= page.total || !page.runs.length) return { ...first, runs };
+  }
+}
+
+function resultsView(run, target) {
+  const d = displayOf(run);
+  target.append(panel(node("h2", {}, "Results"),
+    node("p", {}, d.description || run.title),
+    descriptionList([["Scope", scopeLabel(run)], ["Completed episodes", coverage(run)]]),
+    table(["Metric", "Score"], Object.entries(scoreNames).map(([name, label]) =>
+      [label, percent(d.scores?.[name])]), "Run scores"),
+    notice("Scores describe the completed episodes. Compare episode sets and settings before attributing differences.")),
+    node("details", { class: "panel panel-pad" }, node("summary", {}, "Run details and evidence"),
+      descriptionList([["Original run ID", run.id], ["Selection evidence", d.scope_basis], ["Date basis", d.date_basis]]),
+      recordMeta(run)));
+}
 
 function button(label, action, attrs = {}) {
   const element = node("button", { type: "button", ...attrs }, label);
@@ -132,43 +184,54 @@ async function explorer(version) {
 
   function updateFilter(key, value) {
     filters[key] = value;
+    if (key === "status" && ["failed", "interrupted"].includes(value)) {
+      showUnsuccessful = true;
+      unsuccessful.checked = true;
+    }
     runsOffset = 0;
     load();
   }
 
   controls.append(
-    field("Search runs", filters.q, value => updateFilter("q", value), "search"),
-    field("Group", filters.group, value => updateFilter("group", value)),
-    field("Tag", filters.tag, value => updateFilter("tag", value)));
+    field("Search experiments", filters.q, value => updateFilter("q", value), "search"),
+    dropdown("Scope", [["", "All scopes"], ["scope-evaluation", "Full evaluations"],
+      ["scope-spot-check", "Spot checks"], ["scope-pilot", "Pilots"], ["scope-unknown", "Unknown"]],
+      filters.tag, value => updateFilter("tag", value)));
   controls.firstChild.classList.add("search");
+  const unsuccessful = node("input", { type: "checkbox", "aria-label": "Show failed and interrupted" });
+  unsuccessful.checked = showUnsuccessful;
+  unsuccessful.addEventListener("change", () => {
+    showUnsuccessful = unsuccessful.checked;
+    if (!showUnsuccessful && ["failed", "interrupted"].includes(filters.status)) filters.status = "";
+    runsOffset = 0;
+    load();
+  });
+  controls.append(node("label", { class: "status-visibility" }, unsuccessful, "Show failed and interrupted"));
   let sourceField;
-  list.append(node("div", { class: "catalog-heading" }, node("h2", {}, "Run catalog"), count), controls, content);
-  main.append(title("Experiment runs"), strip, problems, list, selectionBar);
+  list.append(node("div", { class: "catalog-heading" }, node("h2", {}, "Experiments"), count), controls, content);
+  main.append(title("Experiments"), strip, problems, list, selectionBar);
   updateSelection();
 
   async function load(quiet = false) {
     const id = ++request;
     try {
-      const all = Object.entries(filters).filter(([key]) => key !== "status");
-      const url = `/api/runs?${query([...Object.entries(filters), ["offset", runsOffset]])}`;
-      const [data, totals] = await Promise.all([api(url), filters.status
-        ? api(`/api/runs?${query([...all, ["limit", 1]])}`) : null]);
+      const pairs = Object.entries(filters);
+      const all = pairs.filter(([key]) => key !== "status");
+      const [data, totals] = await Promise.all([allRuns(pairs), filters.status ? allRuns(all) : null]);
       if (version !== generation || id !== request) return;
-      if (data.offset >= data.total && data.offset > 0) {
-        runsOffset = Math.max(0, Math.floor((data.total - 1) / data.limit) * data.limit);
-        load();
-        return;
-      }
-      if (!sourceField) {
+      const groups = experimentGroups(data.runs.filter(visibleStatus));
+      const limit = 50;
+      if (runsOffset >= groups.length) runsOffset = Math.max(0, Math.floor((groups.length - 1) / limit) * limit);
+      if (!sourceField && data.sources.length > 1 && !data.runs.some(run => displayOf(run).experiment)) {
         sourceField = dropdown("Source", [["", "All sources"], ...data.sources.map(value => [value, value])],
           filters.source, value => updateFilter("source", value));
         controls.append(sourceField);
       }
       const totalsByState = (totals || data).counts;
-      for (const state of states) {
+      for (const state of states.filter(state => showUnsuccessful || !["failed", "interrupted"].includes(state))) {
         let item = strip.querySelector(`.${state}`);
         if (!item) {
-          const label = state[0].toUpperCase() + state.slice(1);
+          const label = `${state[0].toUpperCase() + state.slice(1)} runs`;
           item = button(node("span", { class: "status-label" }, label),
             () => updateFilter("status", filters.status === state ? "" : state), { class: state });
           item.append(node("strong"));
@@ -177,33 +240,49 @@ async function explorer(version) {
         item.setAttribute("aria-pressed", String(filters.status === state));
         item.lastChild.textContent = totalsByState[state] || "0";
       }
-      count.textContent = `${data.total} ${filters.status ? filters.status + " " : ""}${data.total === 1 ? "run" : "runs"}`;
+      for (const state of ["failed", "interrupted"]) {
+        if (!showUnsuccessful) strip.querySelector(`.${state}`)?.remove();
+      }
+      count.textContent = `${groups.length} experiments`;
       problems.replaceChildren(...(data.scan.issues.length
         ? [notice(`${data.scan.issues.length} indexing issue(s). Run obs index to inspect details.`, true)] : []));
       if (quiet && content.contains(document.activeElement)) return;
-      if (!data.runs.length) {
+      if (!groups.length) {
         content.replaceChildren(node("div", { class: "panel-pad" }, notice(data.sources.length
           ? "No runs match these filters. Clear them or check the configured directories."
           : "Add an experiment source in observatory.toml, then restart the dashboard.")));
         return;
       }
-      const rows = data.runs.map(run => {
+      function compareBox(run) {
         const box = node("input", { type: "checkbox", "aria-label": `Select ${run.title} for comparison` });
         box.checked = selected.has(run.id);
         box.disabled = !box.checked && selected.size >= 20;
-        box.addEventListener("change", () => {
-          toggleRun(run, box.checked);
-          updateSelection();
-        });
-        return [box, node("div", {}, link(run.title, runHash(run.id)), node("div", { class: "run-id" }, run.id),
-          run.index_issue ? node("span", { class: "error" }, "Index issue") : null),
-          node("div", {}, badge(run.status), run.observation ? node("small", { class: "delta" },
-            `Pane ${run.observation.state}`) : null), node("div", {}, run.group || run.source,
-            node("div", { class: "tag-list" }, run.tags.map(tag => node("span", { class: "tag" }, tag)))),
-          badge(run.report_state), node("time", { datetime: run.indexed_at, class: "numeric" }, date(run.indexed_at))];
+        box.addEventListener("change", () => { toggleRun(run, box.checked); updateSelection(); });
+        return box;
+      }
+      const openExperiments = new Set([...content.querySelectorAll("details[data-experiment][open]")].map(item => item.dataset.experiment));
+      const rows = groups.slice(runsOffset, runsOffset + limit).map(group => {
+        const run = group[0];
+        const d = displayOf(run);
+        const name = d.experiment || run.title;
+        const runRows = group.map(trial => [compareBox(trial),
+          link(`Run ${displayOf(trial).run_number || trial.id}`, runHash(trial.id)), badge(trial.status),
+          coverage(trial), ...Object.keys(scoreNames).map(key => percent(displayOf(trial).scores?.[key])),
+          displayOf(trial).date || "—"]);
+        const details = node("details", { "data-experiment": experimentKey(run), open: openExperiments.has(experimentKey(run)) },
+          node("summary", {}, name),
+          table(["Compare", "Run", "Status", "Episodes", ...Object.values(scoreNames), "Date"], runRows, `${name} runs`));
+        const statuses = states.filter(state => group.some(trial => trial.status === state))
+          .map(state => node("span", { class: `badge ${state}` }, `${group.filter(trial => trial.status === state).length} ${state}`));
+        const dates = [...new Set(group.map(trial => displayOf(trial).date).filter(Boolean))].sort();
+        const dateLabel = dates.length > 1 ? `${dates[0]} – ${dates.at(-1)}` : dates[0] || "—";
+        return [group.length === 1 ? compareBox(run) : null,
+          group.length > 1 ? details : link(name, runHash(run.id)),
+          [...new Set(group.map(scopeLabel))].join(" / "),
+          String(group.length), node("div", { class: "tag-list" }, statuses), dateLabel];
       });
-      content.replaceChildren(table(["Select", "Run", "Execution", "Group", "Report", "Last file change"], rows, "Runs"),
-        pagination(data, offset => { runsOffset = offset; load(); }));
+      content.replaceChildren(table(["Compare", "Experiment", "Scope", "Runs", "Status", "Date"], rows, "Experiments"),
+        pagination({ offset: runsOffset, limit, total: groups.length }, offset => { runsOffset = offset; load(); }));
     } catch (error) {
       if (version === generation && id === request) problems.replaceChildren(notice(error.message, true));
     }
@@ -241,7 +320,7 @@ function recordMeta(run, reproducibility) {
   const observed = run.observation;
   return panel(node("div", { class: "details" }, node("h2", {}, "Run record"),
     descriptionList([
-      ["Source", run.source], ["Group", run.group], ["Tags", run.tags.join(", ")], ["Started", r.started_at ? date(r.started_at) : null],
+      ["Source", run.source], ["Experiment", run.group], ["Tags", run.tags.join(", ")], ["Started", r.started_at ? date(r.started_at) : null],
       ["Ended", r.ended_at ? date(r.ended_at) : null], ["Exit code", r.exit_code], ["Git commit", r.git_commit],
       ["Seed", r.seed], ["Command", r.command], ["tmux pane", run.tmux_pane],
       ["Pane observation", observed ? [observed.state, observed.session, observed.pane_pid ? `PID ${observed.pane_pid}` : "",
@@ -360,7 +439,7 @@ async function reportView(run, target, version, final = false) {
     data.has_final && !final && data.state !== "finalized" ? link("Open finalized snapshot", runHash(run.id, "final"), "button") : null,
     final ? link("Open current report", runHash(run.id), "button") : null);
   const article = node("article", { class: "panel" });
-  target.append(actions, node("div", { class: "split" }, article, recordMeta(run, report?.reproducibility)));
+  target.append(actions, article, node("details", { class: "panel panel-pad" }, node("summary", {}, "Run details"), recordMeta(run, report?.reproducibility)));
   if (data.state === "invalid") {
     article.append(section("Report validation", Object.entries(data.errors).map(([name, error]) => notice(`${name}: ${error}`, true))));
   }
@@ -641,10 +720,10 @@ async function runView(id, tab, initialPath, version) {
     add.textContent = selected.has(id) ? "Remove from comparison" : "Add to comparison";
   }, { disabled: !selected.has(id) && selected.size >= 20 });
   main.append(link("← Experiment runs", "#runs", "breadcrumb"), title(run.title, add),
-    node("p", { class: "meta" }, badge(run.status), " ", node("span", { class: "run-id" }, run.id)));
+    node("p", { class: "meta" }, badge(run.status), " · ", scopeLabel(run), " · Episodes ", coverage(run), " · ", displayOf(run).date || "Date unknown"));
   if (run.index_issue) main.append(notice(run.index_issue, true));
   const nav = node("nav", { class: "tabs", "aria-label": "Run views" });
-  for (const [key, label] of [["report", "Report"], ["artifacts", "Artifacts"], ["log", "Live log"]]) {
+  for (const [key, label] of [["results", "Results"], ["report", "Analysis"], ["artifacts", "Files"], ["log", "Live log"]]) {
     const item = link(label, runHash(id, key));
     if (key === tab || key === "report" && tab === "final") item.setAttribute("aria-current", "page");
     nav.append(item);
@@ -653,6 +732,7 @@ async function runView(id, tab, initialPath, version) {
   main.append(nav, area);
   if (tab === "artifacts") await artifactsView(run, area, version, initialPath);
   else if (tab === "log") logView(run, area, version);
+  else if (tab === "results") resultsView(run, area);
   else await reportView(run, area, version, tab === "final");
 }
 
@@ -746,7 +826,7 @@ async function route() {
   try {
     const [page, id, tab, path] = hash.split("/");
     if (page === "compare") compareView(version);
-    else if (page === "run" && id) await runView(decodeURIComponent(id), tab || "report",
+    else if (page === "run" && id) await runView(decodeURIComponent(id), tab || "results",
       path ? decodeURIComponent(path) : null, version);
     else await explorer(version);
   } catch (error) {
