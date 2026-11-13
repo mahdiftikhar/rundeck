@@ -115,4 +115,6 @@ uv run pytest
 node --check observatory/static/app.js
 ```
 
+To edit dashboard styles or the searchable baseline picker, run `npm ci` and `npm run build`. The Tailwind source and adapted shadcn/ui combobox are under `frontend/`. Include the generated assets under `observatory/static/` with source changes. FastAPI serves those files directly, so Node is needed only to rebuild them.
+
 The tests create representative experiment directories and exercise CLI lifecycle, schema and references, legacy discovery, status and tmux observation, comparisons, report exports, log growth and rotation, artifact ranges and bundles, and rsync argument construction.

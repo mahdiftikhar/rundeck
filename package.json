@@ -1,0 +1,18 @@
+{
+  "name": "rundeck-frontend",
+  "private": true,
+  "scripts": {
+    "build:css": "tailwindcss -i frontend/style.css -o observatory/static/style.css --minify",
+    "build:picker": "esbuild frontend/baseline-picker.jsx --bundle --format=esm --jsx=automatic --minify --legal-comments=eof --outfile=observatory/static/baseline-picker.js",
+    "build": "npm run build:css && npm run build:picker"
+  },
+  "devDependencies": {
+    "@base-ui/react": "1.9.0",
+    "@tailwindcss/cli": "4.3.2",
+    "esbuild": "0.28.2",
+    "lucide-react": "1.72.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "tailwindcss": "4.3.2"
+  }
+}

@@ -8,6 +8,7 @@ let runsOffset = 0;
 let filters = { q: "", status: "", source: "", group: "", tag: "" };
 let reference = "";
 let episode = "";
+let destroyBaselinePicker;
 
 function node(tag, attrs = {}, ...children) {
   const element = document.createElement(tag);
@@ -99,18 +100,35 @@ function date(value) {
 function toggleRun(run, checked) {
   if (checked) selected.set(run.id, run.title);
   else selected.delete(run.id);
-  document.querySelector("#compare-link").textContent = selected.size ? `Compare (${selected.size})` : "Compare";
+  const count = document.querySelector("#compare-count");
+  count.textContent = selected.size;
+  count.hidden = selected.size === 0;
 }
 
 async function explorer(version) {
   const strip = node("section", { class: "ledger-strip", "aria-label": "Execution status totals" });
-  const count = node("p", { class: "meta" });
+  const count = node("p", { class: "meta", role: "status" });
   const problems = node("div");
   const list = node("div", { class: "panel" });
   const controls = node("div", { class: "filters" });
   const content = node("div", {}, notice("Reading the run catalog…"));
-  const compareLink = link("Compare selected", "#compare", "button primary");
+  const selectionCount = node("span", { role: "status" });
+  const selectionBar = node("div", { class: "selection-bar" }, selectionCount,
+    node("div", { class: "actions" }, button("Clear", () => {
+      for (const id of selected.keys()) toggleRun({ id }, false);
+      for (const check of content.querySelectorAll("input[type=checkbox]")) check.checked = false;
+      updateSelection();
+      (content.querySelector("input[type=checkbox]") || controls.querySelector("input")).focus();
+    }), link("Compare selected", "#compare", "button primary")));
   let request = 0;
+
+  function updateSelection() {
+    selectionBar.hidden = selected.size === 0;
+    selectionCount.textContent = `${selected.size} selected`;
+    for (const check of content.querySelectorAll("input[type=checkbox]")) {
+      check.disabled = !check.checked && selected.size >= 20;
+    }
+  }
 
   function updateFilter(key, value) {
     filters[key] = value;
@@ -124,8 +142,9 @@ async function explorer(version) {
     field("Tag", filters.tag, value => updateFilter("tag", value)));
   controls.firstChild.classList.add("search");
   let sourceField;
-  list.append(controls, content);
-  main.append(title("Experiment runs", compareLink), strip, count, problems, list);
+  list.append(node("div", { class: "catalog-heading" }, node("h2", {}, "Run catalog"), count), controls, content);
+  main.append(title("Experiment runs"), strip, problems, list, selectionBar);
+  updateSelection();
 
   async function load(quiet = false) {
     const id = ++request;
@@ -149,12 +168,14 @@ async function explorer(version) {
       for (const state of states) {
         let item = strip.querySelector(`.${state}`);
         if (!item) {
-          item = button(state, () => updateFilter("status", filters.status === state ? "" : state), { class: state });
-          item.prepend(node("strong"));
+          const label = state[0].toUpperCase() + state.slice(1);
+          item = button(node("span", { class: "status-label" }, label),
+            () => updateFilter("status", filters.status === state ? "" : state), { class: state });
+          item.append(node("strong"));
           strip.append(item);
         }
         item.setAttribute("aria-pressed", String(filters.status === state));
-        item.firstChild.textContent = totalsByState[state] || "0";
+        item.lastChild.textContent = totalsByState[state] || "0";
       }
       count.textContent = `${data.total} ${filters.status ? filters.status + " " : ""}${data.total === 1 ? "run" : "runs"}`;
       problems.replaceChildren(...(data.scan.issues.length
@@ -172,9 +193,7 @@ async function explorer(version) {
         box.disabled = !box.checked && selected.size >= 20;
         box.addEventListener("change", () => {
           toggleRun(run, box.checked);
-          for (const check of content.querySelectorAll("input[type=checkbox]")) {
-            check.disabled = !check.checked && selected.size >= 20;
-          }
+          updateSelection();
         });
         return [box, node("div", {}, link(run.title, runHash(run.id)), node("div", { class: "run-id" }, run.id),
           run.index_issue ? node("span", { class: "error" }, "Index issue") : null),
@@ -243,20 +262,39 @@ function comparisonCell(cell) {
 }
 
 function comparisonTable(data) {
-  return table(["Metric", ...data.runs.map(run => node("span", {}, link(run.title, runHash(run.id)),
+  const comparison = table(["Metric", ...data.runs.map(run => node("span", {}, link(run.title, runHash(run.id)),
     run.id === data.baseline ? node("small", { class: "delta" }, "Baseline") : null))],
   data.rows.map(row => [row.label, ...data.runs.map(run => comparisonCell(row.values[run.id]))]), "Metric comparison");
+  const column = data.runs.findIndex(run => run.id === data.baseline) + 2;
+  for (const cell of comparison.querySelectorAll(`tr > :nth-child(${column})`)) {
+    cell.classList.add("baseline");
+  }
+  return comparison;
 }
 
-const seriesColors = ["#4053b6", "#00796e", "#a34268", "#865515", "#7346ae", "#176589"];
+const chartPainters = new WeakMap();
+document.addEventListener("rundeck-theme-change", () => {
+  for (const canvas of main.querySelectorAll("canvas")) chartPainters.get(canvas)?.();
+});
 function canvasPlot(label, draw) {
   const canvas = node("canvas", { width: 640, height: 270, role: "img", "aria-label": label });
   const context = canvas.getContext("2d");
   if (context) {
-    context.scale(2, 2);
-    context.font = "10px system-ui";
-    context.fillStyle = "#52617b";
-    draw(context, 320, 135);
+    function paint() {
+      const style = getComputedStyle(document.documentElement);
+      const colors = {
+        text: style.getPropertyValue("--muted-foreground").trim(),
+        axis: style.getPropertyValue("--chart-axis").trim(),
+        series: style.getPropertyValue("--chart-series").split(",").map(color => color.trim()),
+      };
+      context.setTransform(2, 0, 0, 2, 0, 0);
+      context.clearRect(0, 0, 320, 135);
+      context.font = "10px system-ui";
+      context.textAlign = "left";
+      draw(context, 320, 135, colors);
+    }
+    chartPainters.set(canvas, paint);
+    paint();
   }
   return canvas;
 }
@@ -271,20 +309,20 @@ function barChart(heading, items) {
   const high = Math.max(0, ...items.map(item => item.value));
   const label = items.map(item => `${item.label} ${number.format(item.value)} ${item.unit}`).join(", ");
   return node("div", { class: "chart-card" }, node("h3", {}, heading),
-    canvasPlot(label, (ctx, width, height) => {
+    canvasPlot(label, (ctx, width, height, colors) => {
       const left = 14;
       const space = width - 28;
       const step = (height - 18) / items.length;
       const x = value => left + scalePosition(value, low, high) * space;
       const zero = x(0);
-      ctx.fillStyle = "#aeb9d4";
+      ctx.fillStyle = colors.axis;
       ctx.fillRect(zero, 0, 1, height - 16);
       items.forEach((item, index) => {
-        ctx.fillStyle = seriesColors[index % seriesColors.length];
+        ctx.fillStyle = colors.series[index % colors.series.length];
         ctx.fillRect(Math.min(x(item.value), zero), index * step + 3,
           Math.max(1, Math.abs(x(item.value) - zero)), Math.max(2, step * .65));
       });
-      ctx.fillStyle = "#52617b";
+      ctx.fillStyle = colors.text;
       ctx.fillText(number.format(low), left, height - 2);
       ctx.textAlign = "right";
       ctx.fillText(number.format(high), width - 14, height - 2);
@@ -380,11 +418,11 @@ function trajectoryPlot(data, column) {
   return node("div", { class: "chart-card" }, node("h3", {}, column),
     node("p", { class: "numeric" }, `${valid.length} values · min ${number.format(low)} · max ${number.format(high)}`),
     canvasPlot(`${column} from row ${data.offset + 1} through ${data.offset + data.rows.length}`,
-      (ctx, width, height) => {
+      (ctx, width, height, colors) => {
         const x = index => 14 + (width - 28) * index / Math.max(1, series.length - 1);
         const y = value => 7 + (height - 24) * (1 - scalePosition(value, low, high));
-        ctx.strokeStyle = seriesColors[0];
-        ctx.fillStyle = seriesColors[0];
+        ctx.strokeStyle = colors.series[0];
+        ctx.fillStyle = colors.series[0];
         ctx.lineWidth = 1.6;
         let previous = null;
         series.forEach((value, index) => {
@@ -399,7 +437,7 @@ function trajectoryPlot(data, column) {
           }
           previous = value;
         });
-        ctx.fillStyle = "#52617b";
+        ctx.fillStyle = colors.text;
         ctx.fillText(String(data.offset + 1), 14, height - 2);
         ctx.textAlign = "right";
         ctx.fillText(String(data.offset + data.rows.length), width - 14, height - 2);
@@ -619,24 +657,34 @@ async function runView(id, tab, initialPath, version) {
 }
 
 function compareView(version) {
-  const choices = node("div", { class: "actions" });
+  const choices = node("div", { class: "actions comparison-controls" });
+  const baselineHost = node("div", { class: "field" });
+  const scopeControls = node("div", { class: "actions" });
+  choices.append(baselineHost, scopeControls);
   const output = node("div");
-  const picks = node("div");
+  const picks = node("div", { class: "comparison-picks" });
+  const controls = panel(picks, choices);
   let request = 0;
-  main.append(title("Compare experiments", link("Select runs", "#runs", "button")), panel(picks, choices), output);
+  let picker;
+  const changeBaseline = value => { reference = value; render(); };
+  main.append(title("Compare experiments", link("Select runs", "#runs", "button")), controls, output);
 
   async function render() {
     const id = ++request;
     const ids = [...selected.keys()];
-    picks.replaceChildren(node("div", { class: "actions" }, [...selected].map(([key, name]) =>
-      button(`Remove ${name}`, () => { toggleRun({ id: key }, false); render(); }))));
+    controls.hidden = ids.length === 0;
+    picks.replaceChildren(...[...selected].map(([key, name]) =>
+      button(`${name} ×`, () => { toggleRun({ id: key }, false); render(); }, { "aria-label": `Remove ${name}` })));
     if (!ids.length) {
-      choices.replaceChildren();
+      scopeControls.replaceChildren();
       output.replaceChildren(notice("Select one or more runs in the run ledger to begin a comparison."));
       return;
     }
-    choices.replaceChildren(dropdown("Baseline", [["", "Default baseline"], ...selected],
-      selected.has(reference) ? reference : "", value => { reference = value; render(); }));
+    const options = [["", "Default baseline"], ...selected];
+    const current = selected.has(reference) ? reference : "";
+    if (picker) picker.update(options, current, changeBaseline);
+    else baselineHost.replaceChildren(dropdown("Baseline", options, current, changeBaseline));
+    scopeControls.replaceChildren();
     output.replaceChildren(notice("Comparing metrics…"));
     try {
       const parameters = query([
@@ -648,7 +696,7 @@ function compareView(version) {
         render();
         return;
       }
-      choices.append(dropdown("Episode", [["", "Aggregate"], ...data.episodes.map(value => [value, value])],
+      scopeControls.append(dropdown("Episode", [["", "Aggregate"], ...data.episodes.map(value => [value, value])],
         episode, value => { episode = value; render(); }),
       link("Export CSV", `/api/compare.csv?${parameters}`, "button"));
       const issues = data.runs.flatMap(run => {
@@ -672,12 +720,23 @@ function compareView(version) {
   }
 
   render();
+  if (selected.size) {
+    import("./baseline-picker.js").then(({ createBaselinePicker }) => {
+      if (version !== generation || !selected.size) return;
+      baselineHost.replaceChildren();
+      picker = createBaselinePicker(baselineHost);
+      destroyBaselinePicker = () => picker.destroy();
+      picker.update([["", "Default baseline"], ...selected], selected.has(reference) ? reference : "", changeBaseline);
+    }).catch(error => console.warn("Searchable baseline picker could not load", error));
+  }
 }
 
 async function route() {
   const hash = location.hash.slice(1) || "runs";
   if (hash === "main") return;
   const version = ++generation;
+  destroyBaselinePicker?.();
+  destroyBaselinePicker = undefined;
   timers.forEach(clearInterval);
   timers = [];
   main.replaceChildren();
