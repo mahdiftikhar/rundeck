@@ -1,0 +1,27 @@
+# Paths are relative to this TOML file unless absolute.
+database = ".observatory/index.sqlite3"
+scan_seconds = 15
+
+[[sources]]
+name = "research"
+root = "./experiments"
+glob = "*"
+group = "Research"
+default_status = "interrupted"
+metrics = "metrics.jsonl"
+log = "run.log"
+# baseline = "reference-run"
+# A marker restricts legacy discovery. A valid run.json always takes precedence.
+# marker = "summary.json"
+# metadata = "summary.json"
+# metadata_fields = { title = "name", exit_code = "execution.exit_code", config = "config", git_commit = "git.sha" }
+# metrics = "stats.json"
+# metrics_format = "json-map"
+sections = { protocol = "Protocol notes" }
+metrics_style.score = { label = "Task score", unit = "points", direction = "higher", chart = true }
+metrics_style.loss = { direction = "lower", chart = false }
+
+[[sources.trajectories]]
+pattern = "traces/*.csv"
+format = "csv"
+columns = ["step", "x", "y"]
