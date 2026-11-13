@@ -9,7 +9,7 @@
   function apply() {
     const dark = preference === "dark" || (preference !== "light" && system.matches);
     root.dataset.theme = dark ? "dark" : "light";
-    document.querySelector('meta[name="theme-color"]').content = dark ? "#111714" : "#f7f8f6";
+    document.querySelector('meta[name="theme-color"]').content = dark ? "#000000" : "#f7f8f6";
     if (control) control.setAttribute("aria-pressed", String(dark));
     document.dispatchEvent(new Event("rundeck-theme-change"));
   }

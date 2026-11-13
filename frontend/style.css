@@ -29,21 +29,21 @@
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --background: #111714;
-  --foreground: #e8f0ea;
-  --card: #19221d;
-  --muted-foreground: #acbbb1;
-  --border: #34433a;
+  --background: #000;
+  --foreground: #f0f0f0;
+  --card: #000;
+  --muted-foreground: #b3b3b3;
+  --border: #343434;
   --primary: #83d7b2;
   --primary-hover: #a3e5c8;
   --on-primary: #10291f;
-  --accent: #233b2f;
+  --accent: #171717;
   --success: #88d6ac;
   --warning: #efbc79;
   --danger: #f4a4b1;
   --running: #a2c8f5;
   --draft: #d4b6ed;
-  --chart-axis: #62776a;
+  --chart-axis: #777;
   --chart-series: #83d7b2, #91bafb, #edab92, #dec18a, #d4b6ed, #80c9cf;
 }
 
@@ -132,6 +132,7 @@ dt { color: var(--muted-foreground); font-size: .8rem; font-weight: 700; }
 dd { margin: 0 0 .65rem; overflow-wrap: anywhere; }
 pre { margin: .75rem 0 0; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--background); padding: .85rem; border-radius: .4rem; }
 pre.log { height: min(60vh, 650px); overflow: auto; background:  #17241e; color: #edf5ee; }
+[data-theme="dark"] pre.log { background: var(--background); color: var(--foreground); border: 1px solid var(--border); }
 .report-section { padding: 1.15rem 1.35rem; border-bottom: 1px solid var(--border); }
 .report-section:last-child { border: 0; }
 .prose { white-space: pre-wrap; overflow-wrap: anywhere; }
