@@ -9,6 +9,7 @@ let filters = { q: "", status: "", source: "", group: "", tag: "" };
 let reference = "";
 let episode = "";
 let destroyBaselinePicker;
+let destroyInspector;
 
 function node(tag, attrs = {}, ...children) {
   const element = document.createElement(tag);
@@ -144,17 +145,26 @@ async function candidateOverview(target, version) {
       table(["Candidate", "Scope", "Episodes", "Status", ...Object.values(scoreNames)], rows, "Candidate results")));
 }
 
-function resultsView(run, target) {
+async function resultsView(run, target, version) {
   const d = displayOf(run);
-  target.append(panel(node("h2", {}, "Results"),
-    node("p", {}, d.description || run.title),
-    descriptionList([["Scope", scopeLabel(run)], ["Completed episodes", coverage(run)]]),
-    table(["Metric", "Score"], Object.entries(scoreNames).map(([name, label]) =>
-      [label, percent(d.scores?.[name])]), "Run scores"),
-    notice("Scores describe the completed episodes. Compare episode sets and settings before attributing differences.")),
-    node("details", { class: "panel panel-pad" }, node("summary", {}, "Run details and evidence"),
-      descriptionList([["Original run ID", run.id], ["Selection evidence", d.scope_basis], ["Date basis", d.date_basis]]),
-      recordMeta(run)));
+  target.append(panel(node("p", {}, d.description || run.title),
+    node("div", { class: "run-score-strip" }, Object.entries(scoreNames).map(([name, label]) =>
+      node("div", {}, node("span", {}, label), node("strong", {}, percent(d.scores?.[name])))))));
+  const data = await api(runApi(run.id, "/episodes"));
+  if (version !== generation) return;
+  if (data.episodes.length === 1 && data.episodes[0].captured) {
+    const { mountInspector } = await import("./inspector.js");
+    const cleanup = await mountInspector({ run, target, alive: () => version === generation, episodes: data.episodes });
+    if (version === generation) destroyInspector = cleanup; else cleanup();
+  } else if (data.episodes.length) {
+    target.append(panel(node("h2", {}, "Episodes"), table(["Episode", "Goals found", "Success", "Steps", "Duration", ""],
+      data.episodes.map(e => [e.id, percent(e.progress), percent(e.success), e.steps ?? "—",
+        Number.isFinite(e.elapsed_s) ? `${Math.round(e.elapsed_s)} s` : "—",
+        link(e.captured ? "Inspect" : "View evidence", `${runHash(run.id, "inspect")}/${encodeURIComponent(e.id)}`, "button")]), "Episode results")));
+  }
+  target.append(node("details", { class: "panel panel-pad" }, node("summary", {}, "Run details and analysis"),
+    link("Written analysis", runHash(run.id, "report"), "button"), link("Original log", runHash(run.id, "log"), "button"),
+    descriptionList([["Original run ID", run.id], ["Selection evidence", d.scope_basis], ["Date basis", d.date_basis]]), recordMeta(run)));
 }
 
 function button(label, action, attrs = {}) {
@@ -803,7 +813,7 @@ async function runView(id, tab, initialPath, version) {
     node("p", { class: "meta" }, badge(run.status), " · ", scopeLabel(run), " · Episodes ", coverage(run), " · ", displayOf(run).date || "Date unknown"));
   if (run.index_issue) main.append(notice(run.index_issue, true));
   const nav = node("nav", { class: "tabs", "aria-label": "Run views" });
-  for (const [key, label] of [["results", "Results"], ["report", "Analysis"], ["artifacts", "Files"], ["log", "Live log"]]) {
+  for (const [key, label] of [["results", "Results"], ["inspect", "Inspect"], ["artifacts", "Files"]]) {
     const item = link(label, runHash(id, key));
     if (key === tab || key === "report" && tab === "final") item.setAttribute("aria-current", "page");
     nav.append(item);
@@ -812,7 +822,13 @@ async function runView(id, tab, initialPath, version) {
   main.append(nav, area);
   if (tab === "artifacts") await artifactsView(run, area, version, initialPath);
   else if (tab === "log") logView(run, area, version);
-  else if (tab === "results") resultsView(run, area);
+  else if (tab === "results") await resultsView(run, area, version);
+  else if (tab === "inspect") {
+    const { mountInspector } = await import("./inspector.js");
+    if (version !== generation) return;
+    const cleanup = await mountInspector({ run, target: area, alive: () => version === generation, episodeId: initialPath });
+    if (version === generation) destroyInspector = cleanup; else cleanup();
+  }
   else await reportView(run, area, version, tab === "final");
 }
 
@@ -895,6 +911,8 @@ async function route() {
   const hash = location.hash.slice(1) || "runs";
   if (hash === "main") return;
   const version = ++generation;
+  destroyInspector?.();
+  destroyInspector = undefined;
   destroyBaselinePicker?.();
   destroyBaselinePicker = undefined;
   timers.forEach(clearInterval);

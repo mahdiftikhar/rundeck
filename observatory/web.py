@@ -32,6 +32,8 @@ from .artifacts import (
     trajectory_window,
 )
 from .config import load_settings
+from .episodes import catalog as episode_catalog
+from .episodes import inspect_episode
 from .files import open_file
 from .index import Index, matching_trajectory, observation, tmux_panes
 from .metrics import compare, compare_report, draft_metrics
@@ -238,6 +240,14 @@ def make_app(settings=None, refresh_settings=None):
             run, tmux_panes() if run["tmux_pane"] else None
         )
         return run
+
+    @app.get("/api/runs/{run_id}/episodes")
+    def episodes(run_id: str):
+        return episode_catalog(index, run_id)
+
+    @app.get("/api/runs/{run_id}/episodes/{episode_id}")
+    def episode(run_id: str, episode_id: str):
+        return inspect_episode(index, run_id, episode_id)
 
     @app.get("/api/runs/{run_id}/report")
     def report_details(run_id: str, revision: Literal["current", "final"] = "current"):
