@@ -308,7 +308,7 @@ export async function mountInspector({ run, target, alive, episodeId, episodes: 
         btn("Next →", () => chooseStage(stageIndex + 1), { "data-next-stage": true })), h("span", { class: "inspector-caption", "data-stage-info": true }));
     stepLabel = h("strong", { class: "inspector-step" });
     slider = h("input", { type: "range", min: 0, max: data.result.steps || 0, value: step, "aria-label": "Simulator step" }); slider.oninput = e => { stop(); step = Number(e.target.value); focus = null; view = null; render(); };
-    speed = h("select", { "aria-label": "Playback speed" }, ...[.25, .5, 1].map(value => h("option", { value, selected: value === .5 }, `${value}×`)));
+    speed = h("select", { "aria-label": "Playback speed" }, ...[.25, .5, 1, 1.5, 2].map(value => h("option", { value, selected: value === .5 }, `${value}×`)));
     play = btn("Play", () => { if (timer) { stop(); return; } if (step >= data.result.steps) step = 0; play.textContent = "Pause"; timer = setInterval(() => { if (!active()) { stop(); return; } step = Math.min(data.result.steps, step + 1); focus = null; view = null; render(); if (step >= data.result.steps) stop(); }, 250 / Number(speed.value)); });
     speed.onchange = () => { if (timer) { stop(); play.click(); } };
     const next = direction => { const steps = data.decisions.filter(d => d.agent_id === agent && d.applied_step != null).map(d => d.applied_step).sort((a, b) => a - b); const n = direction > 0 ? steps.find(s => s > step) : steps.filter(s => s < step).at(-1); phase = "replay"; jump(n ?? (direction > 0 ? data.result.steps : 0)); };
