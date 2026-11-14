@@ -80,7 +80,7 @@
 .inspector-stage-navigation select { min-width:220px; max-width:100%; }
 .inspector-message-section { margin:0 0 12px; }
 .inspector-message-section:last-child { margin-bottom:0; }
-.inspector-message-section h4 { margin:0 0 4px; font-size:12px; font-weight:650; color:var(--muted-foreground); }
+.inspector-message-section h4 { margin:0 0 6px; font-size:14px; font-weight:700; color:var(--foreground); }
 .inspector-message-section .inspector-text { font-size:14px; line-height:1.65; }
 .inspector-image-age,.inspector-clipped { color:var(--muted-foreground); font-size:12px; margin:0 0 10px; }
 .inspector-clipped { margin:12px 0 0; font-style:italic; }
@@ -106,3 +106,7 @@
 
 .inspector-compact-reasoning { margin-top:12px; }
 .inspector-compact-reasoning>.inspector-text { -webkit-line-clamp:3; font-size:14px; }
+
+.inspector-view-list { list-style:disc; margin:10px 0; padding-left:22px; font-size:14px; line-height:1.65; }
+.inspector-view-list li { margin:0 0 8px; white-space:pre-wrap; overflow-wrap:anywhere; }
+.inspector-view-list li:last-child { margin-bottom:0; }
