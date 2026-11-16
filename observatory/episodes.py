@@ -9,6 +9,7 @@ import zipfile
 from pathlib import PurePosixPath
 
 from .files import read_small, strict_json
+from .prompts import planning_discussion_context
 
 LIMIT = 32 * 1024 * 1024
 CAPTURE_HASH = "6a421781f7ff14cb09bfeb704c9638bfb63fa0ecfada727047e70f1c5d30e42e"
@@ -164,6 +165,7 @@ def discussion_stages(result, result_path, requests, image_path, warnings):
                 {
                     **message,
                     "visible_message_ids": request.get("visible_message_ids", []),
+                    "prompt_text": request.get("prompt_text"),
                     "requested_at": request.get("requested_at"),
                     "views": views,
                     "view_note": note,
@@ -303,6 +305,14 @@ def inspect_episode(index, run_id, episode_id):
                 "request_step": step,
                 "applied_step": application.get("applied_step") if application else None,
                 "raw": raw,
+                "request_inputs": {
+                    key: request[key]
+                    for key in ("instruction", "announcement_text")
+                    if request is not None and key in request
+                },
+                "planning_context": planning_discussion_context(result, result_path, agent, step)
+                if not ambiguous
+                else None,
                 "source": event["source"],
                 "application_source": application["source"] if application else None,
                 "request_source": request["source"] if request else None,
@@ -345,6 +355,8 @@ def inspect_episode(index, run_id, episode_id):
             continue
     if floor is None:
         warnings.append("Reference floorplan is unavailable; the map shows measured paths only.")
+    elif config.get("inspector_floorplan_notes", {}).get(episode_id):
+        warnings.append(config["inspector_floorplan_notes"][episode_id])
     hashes = config.get("source_hashes", {})
     crop = hashes.get("scripts/navigation_heatmaps/capture_episode.py") == CAPTURE_HASH
     agent_ids = sorted(
@@ -384,6 +396,9 @@ def inspect_episode(index, run_id, episode_id):
         "debate": messages,
         "debate_stages": stages,
         "goals": trajectory.get("goals", []),
+        "goals_source": {"path": f"{folder}/traj_{episode_id}.json"}
+        if trajectory.get("goals")
+        else None,
         "floor": floor,
         "warnings": warnings,
         "result_source": {"path": result_path},

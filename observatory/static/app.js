@@ -1,3 +1,5 @@
+import { episodeColumns, groupEpisodes } from "./episode-table.js";
+
 const main = document.querySelector("main");
 const selected = new Map();
 const states = ["running", "completed", "failed", "interrupted"];
@@ -157,14 +159,65 @@ async function resultsView(run, target, version) {
     const cleanup = await mountInspector({ run, target, alive: () => version === generation, episodes: data.episodes });
     if (version === generation) destroyInspector = cleanup; else cleanup();
   } else if (data.episodes.length) {
-    target.append(panel(node("h2", {}, "Episodes"), table(["Episode", "Goals found", "Success", "Steps", "Duration", ""],
-      data.episodes.map(e => [e.id, percent(e.progress), percent(e.success), e.steps ?? "—",
-        Number.isFinite(e.elapsed_s) ? `${Math.round(e.elapsed_s)} s` : "—",
-        link(e.captured ? "Inspect" : "View evidence", `${runHash(run.id, "inspect")}/${encodeURIComponent(e.id)}`, "button")]), "Episode results")));
+    target.append(episodeResults(run, data.episodes));
   }
   target.append(node("details", { class: "panel panel-pad" }, node("summary", {}, "Run details and analysis"),
     link("Written analysis", runHash(run.id, "report"), "button"), link("Original log", runHash(run.id, "log"), "button"),
     descriptionList([["Original run ID", run.id], ["Selection evidence", d.scope_basis], ["Date basis", d.date_basis]]), recordMeta(run)));
+}
+
+function episodeResults(run, episodes) {
+  let sortKey = "id";
+  let direction = "asc";
+  let groupKey = "";
+  const content = node("div");
+  const format = (episode, key) => {
+    const value = episode[key];
+    if (key === "progress" || key === "success") return percent(value);
+    if (key === "elapsed_s") return Number.isFinite(value) ? `${Math.round(value)} s` : "—";
+    return value ?? "—";
+  };
+  const headers = episodeColumns.map(([key, label]) => {
+    const control = button(label, () => {
+      direction = sortKey === key ? (direction === "asc" ? "desc" : "asc") : key === "id" ? "asc" : "desc";
+      sortKey = key;
+      render();
+    });
+    return node("th", { scope: "col" }, control);
+  });
+  const body = node("tbody");
+  const resultTable = node("div", { class: "table-scroll", tabindex: "0", "aria-label": "Episode results" },
+    node("table", { "aria-label": "Episode results" },
+      node("thead", {}, node("tr", {}, headers, node("th", { scope: "col" }, "Evidence"))), body));
+
+  function render() {
+    headers.forEach((header, index) => {
+      const [key, label] = episodeColumns[index];
+      const active = sortKey === key;
+      header.setAttribute("aria-sort", active ? direction === "asc" ? "ascending" : "descending" : "none");
+      header.firstChild.textContent = `${label} ${active ? direction === "asc" ? "↑" : "↓" : "↕"}`;
+    });
+    body.replaceChildren(...groupEpisodes(episodes, { sortKey, direction, groupKey }).flatMap(group => {
+      const rows = group.episodes.map(e => node("tr", {},
+        episodeColumns.map(([key]) => node("td", {}, format(e, key))),
+        node("td", {}, link(e.captured ? "Inspect" : "View evidence",
+          `${runHash(run.id, "inspect")}/${encodeURIComponent(e.id)}`, "button"))));
+      if (groupKey) {
+        const label = episodeColumns.find(([key]) => key === groupKey)[1];
+        rows.unshift(node("tr", {}, node("th", { scope: "rowgroup", colspan: episodeColumns.length + 1 },
+          `${label}: ${format({ [groupKey]: group.value }, groupKey)} · ${group.episodes.length} episodes`)));
+      }
+      return rows;
+    }));
+  }
+
+  content.append(node("div", { class: "catalog-heading" }, node("h2", {}, "Episodes"),
+    dropdown("Group by", [["", "No grouping"], ...episodeColumns], groupKey, value => {
+      groupKey = value;
+      render();
+    })), notice("Click a column heading to sort; click again to reverse."), resultTable);
+  render();
+  return panel(content);
 }
 
 function button(label, action, attrs = {}) {

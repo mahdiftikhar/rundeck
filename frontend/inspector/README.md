@@ -15,6 +15,10 @@ uses its existing JavaScript entry point.
 - `primitives.jsx` provides shared panels, buttons, fields, expandable evidence
   and source links. `message-format.js` parses recorded labels and view lists;
   React renders their content as text, never HTML.
+- `PromptViewer.jsx` shows recorded debate text, indexed saved request messages,
+  recorded instruction/context, and frozen source templates/builders. The provider
+  loads evidence only when a prompt panel is opened. LA/VA selection and explicit
+  agent/request-step matching keep captures separate; templates retain placeholders.
 - `theme.js` handles redraws when dashboard theme colors change.
 
 From the Rundeck checkout, using Node.js 22+ and npm:
@@ -33,3 +37,8 @@ For this project's pinned installation, also refresh
 `sim-code/scripts/rundeck/rundeck.patch` from the pinned upstream revision,
 including newly added frontend source files. Keep source and bundle together so
 setup can restore both without requiring Node to browse experiments.
+
+`GoalOverview.jsx` and `goals.js` summarize final per-goal evaluator outcomes,
+explicit finder IDs and recorded confirmation steps. Map markers share these
+status selectors; reference goal metadata and policy claims do not override
+final evaluator outcomes.

@@ -1,8 +1,9 @@
+import { PromptViewer } from "./PromptViewer.jsx";
 import { agentName, last } from "./model.js";
 import { Button, Details, Empty, Field, Panel, SourceLink } from "./primitives.jsx";
 
 function DecisionContent({ data, decision, agent, step }) {
-  if (!decision) return <Empty>No applied decision is recorded for this agent at or before this step.</Empty>;
+  if (!decision) return <><Empty>No applied decision is recorded for this agent at or before this step.</Empty><PromptViewer agent={agent} /></>;
   const raw = decision.raw;
   const la = raw.la_decision || {};
   const claim = (data.result.policy_claims || []).filter(c => c.agent_id === agent && c.step <= step).at(-1);
@@ -11,6 +12,7 @@ function DecisionContent({ data, decision, agent, step }) {
       <span>{decision.applied_step == null ? "Not applied" : `Applied ${decision.applied_step}`}</span>
     </div>
     {decision.attribution_warning && <Empty>{decision.attribution_warning}</Empty>}
+    <PromptViewer agent={agent} requestStep={decision.request_step} inputs={decision.request_inputs} planningContext={decision.planning_context} source={decision.request_source} />
     <Field name="Recorded reasoning" value={la.reasoning || raw.reasoning_action || raw.reasoning} />
     <Field name="Chosen action" value={[raw.action, raw.direction].filter(Boolean).join(" ")} />
     {raw.bbox?.target && <Field name="Predicted target" value={raw.bbox.target} />}

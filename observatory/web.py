@@ -37,6 +37,7 @@ from .episodes import inspect_episode
 from .files import open_file
 from .index import Index, matching_trajectory, observation, tmux_panes
 from .metrics import compare, compare_report, draft_metrics
+from .prompts import prompt_inventory
 from .reports import markdown, read_report
 
 STATIC = Path(__file__).parent / "static"
@@ -248,6 +249,18 @@ def make_app(settings=None, refresh_settings=None):
     @app.get("/api/runs/{run_id}/episodes/{episode_id}")
     def episode(run_id: str, episode_id: str):
         return inspect_episode(index, run_id, episode_id)
+
+    @app.get("/api/runs/{run_id}/episodes/{episode_id}/prompts")
+    def episode_prompts(run_id: str, episode_id: str):
+        run = index.public(index.get(run_id))
+        config = run["reproducibility"]["config"]
+        entry = next(
+            (item for item in config.get("episode_index", []) if item["id"] == episode_id),
+            None,
+        )
+        if entry is None:
+            raise KeyError("Episode is not indexed for this run")
+        return prompt_inventory(index, run_id, episode_id, entry["result_path"], config)
 
     @app.get("/api/runs/{run_id}/report")
     def report_details(run_id: str, revision: Literal["current", "final"] = "current"):

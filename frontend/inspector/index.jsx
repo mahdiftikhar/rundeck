@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
+import { PromptEvidenceProvider } from "./PromptViewer.jsx";
 import { EpisodeInspector } from "./EpisodeInspector.jsx";
 import { Empty, EvidenceContext } from "./primitives.jsx";
 
@@ -53,7 +54,7 @@ function Inspector({ run, alive, episodeId, episodes: supplied }) {
         {episodes.map(episode => <option key={episode.id} value={episode.id}>{episode.id}</option>)}
       </select></label>}</div>
       <div>{error ? <Empty>{error}</Empty>
-        : data ? <EpisodeInspector key={selected} data={data} />
+        : data ? <PromptEvidenceProvider key={selected} episodeId={selected}><EpisodeInspector data={data} /></PromptEvidenceProvider>
           : episodes?.length === 0 ? <Empty>No indexed episode results are available for this run.</Empty>
             : <Empty>Loading episode evidence…</Empty>}
       </div>

@@ -6,6 +6,7 @@
     "build:picker": "esbuild frontend/baseline-picker.jsx --bundle --format=esm --jsx=automatic --minify --legal-comments=eof --outfile=observatory/static/baseline-picker.js",
     "build": "npm run build:css && npm run build:picker && npm run build:inspector",
     "build:inspector": "esbuild frontend/inspector/index.jsx --bundle --format=esm --jsx=automatic --minify --legal-comments=eof --outfile=observatory/static/inspector.js",
+    "test:episodes": "node --test frontend/tests/episode-table.test.mjs",
     "test:inspector": "node --test frontend/inspector/tests/*.test.mjs"
   },
   "devDependencies": {

@@ -1,4 +1,5 @@
 import { Fragment, useLayoutEffect, useRef, useState } from "react";
+import { PromptViewer } from "./PromptViewer.jsx";
 import { splitMessageText, splitViewList } from "./message-format.js";
 import { agentName } from "./model.js";
 import { Button, Details, Field, Panel, SourceLink } from "./primitives.jsx";
@@ -52,6 +53,7 @@ export function MessageBubble({ message, stage, mode, expanded, onExpand, onCame
         hidden={mode === "full" || (blocks.length === 1 && blocks[0].text.length < 90)}>{full ? "Show less" : "Read whole message"}</Button>
       {message.views.some(Boolean) && <Button className="inspector-chat-action" onClick={onCamera}>{cameraLabel}</Button>}
     </div>
+    <PromptViewer debate agent={message.agent_id} requestStep={message.request_step} recordedText={message.prompt_text} source={message.request_source} />
     <Details name="Original reply and evidence">
       <p className="inspector-caption">{message.truncated ? "The complete raw reply below includes text teammates did not receive." : "Original model reply and recorded delivery metadata."}</p>
       <Details name="Full raw reply"><ReadableMessage text={message.raw_text || "No raw reply logged."} /></Details>

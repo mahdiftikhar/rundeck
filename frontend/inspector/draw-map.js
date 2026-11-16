@@ -1,3 +1,4 @@
+import { goalSummary } from "./goals.js";
 import { last } from "./model.js";
 import { agentColor } from "./theme.js";
 
@@ -13,7 +14,7 @@ export function drawMap(map, data, selectedStep, agent) {
   ctx.fillStyle = style.getPropertyValue("--background"); ctx.fillRect(0, 0, width, height);
   const sample = last(data.poses, selectedStep);
   const points = data.poses.flatMap(p => (p.pos || []).filter(p => p?.length >= 3).map(p => [p[0], p[2]]));
-  const goals = data.goals.filter(g => Array.isArray(g.object_xz || g.xz));
+  const goals = goalSummary(data, selectedStep).filter(g => Array.isArray(g.object_xz || g.xz));
   points.push(...goals.map(g => g.object_xz || g.xz));
   if (!points.length && !floor) { ctx.fillStyle = style.getPropertyValue("--muted-foreground"); ctx.font = "14px system-ui"; ctx.fillText("No measured positions recorded.", 20, 40); return; }
   let minX, minZ, maxX, maxZ;
@@ -52,7 +53,18 @@ export function drawMap(map, data, selectedStep, agent) {
     const p = sample.pos[i]; ctx.fillStyle = color(id ?? i); ctx.beginPath(); ctx.arc(x(p[0]), y(p[2]), id === agent ? 10 : 8, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = style.getPropertyValue("--card"); ctx.font = "bold 11px system-ui"; ctx.textAlign = "center"; ctx.fillText(id == null ? `s${i}` : String(id), x(p[0]), y(p[2]) + 4);
   }
-  for (const goal of goals) { const p = goal.object_xz || goal.xz; ctx.strokeStyle = style.getPropertyValue("--foreground"); ctx.lineWidth = 1.5; ctx.strokeRect(x(p[0]) - 4, y(p[1]) - 4, 8, 8); ctx.fillStyle = style.getPropertyValue("--foreground"); ctx.font = "11px system-ui"; ctx.textAlign = "left"; ctx.fillText(`G${goal.idx}`, x(p[0]) + 7, y(p[1]) + 4); }
+  for (const goal of goals) {
+    const p = goal.object_xz || goal.xz;
+    const found = goal.status === "found";
+    ctx.strokeStyle = style.getPropertyValue(found ? "--inspector-a" : "--foreground");
+    ctx.fillStyle = ctx.strokeStyle;
+    ctx.lineWidth = 2;
+    if (found) ctx.fillRect(x(p[0]) - 5, y(p[1]) - 5, 10, 10);
+    else ctx.strokeRect(x(p[0]) - 5, y(p[1]) - 5, 10, 10);
+    ctx.font = "bold 11px system-ui";
+    ctx.textAlign = "left";
+    ctx.fillText(`G${goal.idx} ${goal.category || ""} · ${found ? "✓" : goal.status === "missing" ? "○" : "?"}`, x(p[0]) + 8, y(p[1]) + 4);
+  }
   ctx.fillStyle = style.getPropertyValue("--muted-foreground"); ctx.textAlign = "left"; ctx.font = "11px system-ui";
   ctx.fillText(sample ? `Pose step ${sample.step} · X/Z metres${data.pose_agent_ids ? "" : " · pose slots, identity unverified"}` : "No pose at this step", 12, height - 12);
 }

@@ -3,6 +3,7 @@ import { AgentStatePanel } from "./AgentStatePanel.jsx";
 import { CameraPanel } from "./CameraPanel.jsx";
 import { DebatePanel } from "./Messages.jsx";
 import { DecisionTimeline } from "./DecisionTimeline.jsx";
+import { GoalOverview } from "./GoalOverview.jsx";
 import { MapPanel } from "./MapPanel.jsx";
 import { PlaybackControls, StageNavigation } from "./PlaybackControls.jsx";
 import { debateStages, currentDecision, frameEvidence } from "./model.js";
@@ -58,6 +59,10 @@ export function EpisodeInspector({ data }) {
     </div>
     {debate ? <StageNavigation stages={stages} stageIndex={state.stageIndex} onStage={chooseStage} />
       : <PlaybackControls state={state} maxStep={maxStep} dispatch={dispatch} onDecision={nextDecision} />}
+    <GoalOverview data={data} step={debate ? stage?.step : state.step} onSeek={step => {
+      patch({ phase: "replay" });
+      dispatch({ type: "seek", step, maxStep });
+    }} />
     <div className="inspector-layout" data-phase={state.phase}>
       <div className="inspector-visuals">
         <MapPanel data={data} step={debate ? stage?.step : state.step} agent={state.agent} />
